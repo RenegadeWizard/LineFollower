@@ -7,8 +7,8 @@
 
 int prev_err = 0, przestrzelony = 0; 
 int blad, pop_blad = 0, Kp = 1, Kd = 0; 
-int V_zad = 80; // wymagane zmienne globalne 
-int tab_czujnikow[7] = {3,4,5,2,7,0,1}; // ustawienie czujnikow na płytce
+int V_zad = 40; // wymagane zmienne globalne 
+int tab_czujnikow[7] = {1,0,7,2,5,4,3}; // ustawienie czujnikow na płytce
 int czujniki[7];    // wartości czujnikow
 char send[4];
 
@@ -48,27 +48,7 @@ void toStringInt(int wartosc){
     }
 }
 
-void czytaj_adc() 
-{ 
-    for(int i=0; i<7; i++){ 
-        ADMUX &= 0b11000000; 
-        ADMUX |= tab_czujnikow[i];
-        // ADMUX |= 0x0e; 
-        ADCSRA |= _BV(ADSC); 
-        while(ADCSRA & _BV(ADSC)) {}; 
-        
-        // czujniki[i] = (ADCH<<8) + ADCL;
-        czujniki[i] = ADCL + (ADCH<<8);
 
-        // czujniki[i] = ADCL;
-        // char h = ADCH;
-
-        if(czujniki[i] > 200)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
-            czujniki[i] = 1; 
-        else 
-            czujniki[i] = 0; 
-    } 
-}
 
 void init(){
     DDRB |= _BV(0) | _BV(1) | _BV(2);
@@ -94,48 +74,7 @@ void init(){
     ADMUX |= _BV(REFS0);
 }
 
-int licz_blad(){ 
-    int err = 0; 
-    int ilosc = 0; 
-    
-    int waga = 10;                        // współczynnik wagi czujników ustawiany w zależności od przestrzelenia; poprzednio stały i równy 10 
-    
-    if(przestrzelony)                    // zmniejszenie wag czujników w przypadku przestrzelenia zakrętu 
-        waga = 5; 
-    
-    for(int i=6; i<=0; i--){ 
-        err += czujniki[i]*(i-3)*waga; 
-        ilosc += czujniki[i]; 
-    } 
-    
-    if(ilosc != 0){ 
-        err /= ilosc; 
-        prev_err = err; 
-    }else{ 
-        if(prev_err < -20){ 
-            err = -40; 
-            przestrzelony = 1;                // ustawienie flagi - przestrzelony, linia po lewej 
-        }else if(prev_err > 20){ 
-            err = 40; 
-            przestrzelony = 2;                // ustawienie flagi - przestrzelony, linia po prawej 
-        }else 
-            err = 0; 
-    }
-    
-    if(przestrzelony == 1 && err >= 0)        // zerowanie flagi przestrzelenia zakrętu po powrocie na środek linii 
-        przestrzelony = 0; 
-    else if(przestrzelony == 2 && err <= 0) 
-        przestrzelony = 0; 
-    
-    return err; 
-}
 
-int PD(){ 
-    //zmienna blad zawiera aktualny wynik fukcji licz_blad() 
-    int rozniczka = blad - pop_blad; 
-    pop_blad = blad; 
-    return Kp*blad + Kd*rozniczka; 
-}
 
 void rightMotor(int v){
     if(v > 0){
@@ -175,7 +114,7 @@ void stop(){
 }
 
 void print(){
-     //   PORTD &= ~_BV(2);
+    //   PORTD &= ~_BV(2);
     for(int i = 0; i < 7;i++){
         toStringInt(czujniki[i]);
         USART_send('(');
@@ -193,13 +132,11 @@ void print(){
     return ;
 }
 
-void petla_LF(){ 
-    czytaj_adc(); 
-    blad = licz_blad(); 
-    int regulacja = PD(); 
-    leftMotor(V_zad + regulacja);
-    rightMotor(V_zad - regulacja); 
-}
+void petla_LF();
+int PD();
+int licz_blad();
+void czytaj_adc();
+
 
 int main(void){
     // init
@@ -221,7 +158,6 @@ int main(void){
             _delay_ms(1000);
         }else{
             if(flaga)
-                //print();
                 petla_LF();
         }
 
@@ -229,3 +165,69 @@ int main(void){
     }
     return 0;
 }
+
+void petla_LF(){ 
+    czytaj_adc(); 
+    blad = licz_blad(); 
+    int regulacja = PD(); 
+    leftMotor(V_zad + blad);
+    rightMotor(V_zad - blad); 
+}
+
+void czytaj_adc() 
+{ 
+    for(int i=0; i<7; i++){ 
+        ADMUX &= 0b11000000; 
+        ADMUX |= tab_czujnikow[i];
+        // ADMUX |= 0x0e; 
+        ADCSRA |= _BV(ADSC); 
+        while(ADCSRA & _BV(ADSC)) {}; 
+        
+        // czujniki[i] = (ADCH<<8) + ADCL;
+        czujniki[i] = ADCL + (ADCH<<8);
+
+        // czujniki[i] = ADCL;
+        // char h = ADCH;
+
+        if(czujniki[i] > 200)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
+            czujniki[i] = 1; 
+        else 
+            czujniki[i] = 0; 
+    } 
+}
+
+int licz_blad(){ 
+    int err = 0; 
+    int ilosc = 0; 
+    
+    for(int i=0; i<7; i++) 
+    { 
+        err += czujniki[i]*(i-3)*10; 
+        ilosc += czujniki[i]; 
+    } 
+    
+    if(ilosc != 0) 
+    { 
+        err /= ilosc; 
+        prev_err = err; 
+    } 
+    else 
+    { 
+        if(prev_err < -20)                // linia ostatanio widziana po lewej stronie - ustalamy ujemny błąd większy od błędu skrajnego lewego czujnika 
+            err = -40; 
+        else if(prev_err > 20)            // linia ostatanio widziana po prawej stronie - analogicznie do powyższego 
+            err = 40; 
+        else                            // przerwa w linii - trzeba jechać prosto 
+            err = 0; 
+    } 
+    
+    return 2*err; 
+}
+
+int PD(){ 
+    //zmienna blad zawiera aktualny wynik fukcji licz_blad() 
+    int rozniczka = blad - pop_blad; 
+    pop_blad = blad; 
+    return Kp*blad + Kd*rozniczka; 
+}
+
