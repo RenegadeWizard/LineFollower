@@ -6,9 +6,10 @@
   
 
 int prev_err = 0, przestrzelony = 0; 
-int blad, pop_blad = 0, Kp = 1, Kd = 0; 
-int V_zad = 40; // wymagane zmienne globalne 
+int blad, pop_blad = 0, Kp = 0, Kd = 0; 
+int V_zad = 60; // wymagane zmienne globalne 
 int tab_czujnikow[7] = {1,0,7,2,5,4,3}; // ustawienie czujnikow na płytce
+int tab_wag[7] = {30,20,10,0,-10,-20,-30};
 int czujniki[7];    // wartości czujnikow
 char send[4];
 
@@ -113,7 +114,7 @@ void stop(){
     rightMotor(0);
 }
 
-void print(){
+void print_info(){
     //   PORTD &= ~_BV(2);
     for(int i = 0; i < 7;i++){
         toStringInt(czujniki[i]);
@@ -129,7 +130,6 @@ void print(){
     }
     USART_send('\n');
     USART_send('\r');
-    return ;
 }
 
 void petla_LF();
@@ -143,17 +143,12 @@ int main(void){
     init();
     PORTD |= _BV(2);    // standby (?)
     UART_init(9600,false,true);
-    bool flaga = false;
+    bool flaga = true;
     // głowna petla
     while(1){
         if(!(PIND & (1<<PD3))){    // przycisk gdy wciśniety
-            flaga = !flaga;
-            if(!flaga){
-                // leftMotor(250);
-                // rightMotor(250);
-                stop();
-                // leftMotor(100);
-            }
+            //Kp++;
+            print_info();
             //deleay ulatwiajacy obsluge przycisku
             _delay_ms(1000);
         }else{
@@ -170,8 +165,9 @@ void petla_LF(){
     czytaj_adc(); 
     blad = licz_blad(); 
     int regulacja = PD(); 
-    leftMotor(V_zad + blad);
-    rightMotor(V_zad - blad); 
+
+    //leftMotor(V_zad + regulacja);
+    //rightMotor(V_zad - regulacja); 
 }
 
 void czytaj_adc() 
@@ -189,10 +185,10 @@ void czytaj_adc()
         // czujniki[i] = ADCL;
         // char h = ADCH;
 
-        if(czujniki[i] > 200)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
-            czujniki[i] = 1; 
-        else 
-            czujniki[i] = 0; 
+        //if(czujniki[i] > 700)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
+        //    czujniki[i] = 1; 
+        //else 
+        //    czujniki[i] = 0; 
     } 
 }
 
@@ -202,7 +198,7 @@ int licz_blad(){
     
     for(int i=0; i<7; i++) 
     { 
-        err += czujniki[i]*(i-3)*10; 
+        err += czujniki[i]*tab_wag[i]; 
         ilosc += czujniki[i]; 
     } 
     
@@ -214,14 +210,14 @@ int licz_blad(){
     else 
     { 
         if(prev_err < -20)                // linia ostatanio widziana po lewej stronie - ustalamy ujemny błąd większy od błędu skrajnego lewego czujnika 
-            err = -40; 
+            err = -20; 
         else if(prev_err > 20)            // linia ostatanio widziana po prawej stronie - analogicznie do powyższego 
-            err = 40; 
+            err = 20; 
         else                            // przerwa w linii - trzeba jechać prosto 
             err = 0; 
     } 
     
-    return 2*err; 
+    return err; 
 }
 
 int PD(){ 
