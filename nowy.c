@@ -103,7 +103,7 @@ int licz_blad(){
     if(przestrzelony)                    // zmniejszenie wag czujników w przypadku przestrzelenia zakrętu 
         waga = 5; 
     
-    for(int i=0; i<7; i++){ 
+    for(int i=6; i<=0; i--){ 
         err += czujniki[i]*(i-3)*waga; 
         ilosc += czujniki[i]; 
     } 
@@ -175,6 +175,21 @@ void stop(){
 }
 
 void print(){
+     //   PORTD &= ~_BV(2);
+    for(int i = 0; i < 7;i++){
+        toStringInt(czujniki[i]);
+        USART_send('(');
+        USART_send(i+0x30);
+        USART_send(')');
+        USART_send(' ');
+        for(short j=0;j<4;j++){
+            USART_send(send[j]);
+        }
+        USART_send('\n');
+        USART_send('\r');
+    }
+    USART_send('\n');
+    USART_send('\r');
     return ;
 }
 
@@ -196,33 +211,21 @@ int main(void){
     while(1){
         if(!(PIND & (1<<PD3))){    // przycisk gdy wciśniety
             flaga = !flaga;
-            if(flaga){
+            if(!flaga){
                 // leftMotor(250);
                 // rightMotor(250);
-                petla_LF();
-            }else{
                 stop();
                 // leftMotor(100);
             }
-            
+            //deleay ulatwiajacy obsluge przycisku
+            _delay_ms(1000);
         }else{
-            // PORTD &= ~_BV(2);
-            // for(int i = 0; i < 7;i++){
-            //     toStringInt(czujniki[i]);
-            //     USART_send('(');
-            //     USART_send(i+0x30);
-            //     USART_send(')');
-            //     USART_send(' ');
-            //     for(short j=0;j<4;j++){
-            //         USART_send(send[j]);
-            //     }
-            //     USART_send('\n');
-            //     USART_send('\r');
-            // }
-            // USART_send('\n');
-            // USART_send('\r');
+            if(flaga)
+                //print();
+                petla_LF();
         }
-        _delay_ms(100);
+
+        _delay_ms(10);
     }
     return 0;
 }
