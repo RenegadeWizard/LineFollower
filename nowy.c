@@ -7,9 +7,10 @@
 
 int prev_err = 0, przestrzelony = 0; 
 int blad, pop_blad = 0, Kp = 1, Kd = 0; 
-int V_zad = 80; // wymagane zmienne globalne 
-int tab_czujnikow[7] = {3,4,5,2,7,0,1}; // ustawienie czujnikow na płytce
+int V_zad = 150; // wymagane zmienne globalne 
+int tab_czujnikow[7] = {3,4,5,2,7,6,1}; // ustawienie czujnikow na płytce
 int czujniki[7];    // wartości czujnikow
+int czujnikiBool[7];
 char send[4];
 
 
@@ -17,28 +18,28 @@ void UART_init(unsigned int baud,bool RX,bool TX){
     // ustawienie prędkości
     unsigned int ubrr;
     ubrr=(((F_CPU / (baud * 16UL))) - 1);
-    UBRRH = (unsigned char)(ubrr>>8);
-    UBRRL = (unsigned char)ubrr;
+    UBRR0H = (unsigned char)(ubrr>>8);
+    UBRR0L = (unsigned char)ubrr;
     // UBRRH = 0;   // 9600 bps @ 16MHz
     // UBRRL = 0x67;    // 9600 bps @ 16MHz
     // ustawienie bitów parzystości
-    UCSRC |= 1<<UPM1;// 1 bit parzystości
+    UCSR0C |= 1<<UPM01;// 1 bit parzystości
     // ustawienie ilości bitów danych
-    UCSRC |= (1 << URSEL) | (1<<UCSZ1) | (1<<UCSZ0);    //
+    UCSR0C |= /*(1 << URSEL) | */(1<<UCSZ01) | (1<<UCSZ00);    //
     // ustawienie bitów stopu
     // domyślnie jest 1
  
     if(RX){
-        UCSRB |= 1<<RXEN;
+        UCSR0B |= 1<<RXEN0;
     }
     if(TX){
-        UCSRB |= 1<<TXEN;
+        UCSR0B |= 1<<TXEN0;
     }
 }
 
 void USART_send( unsigned char data){
-    while(!(UCSRA & (1<<UDRE)));
-    UDR = data;
+    while(!(UCSR0A & (1<<UDRE0)));
+    UDR0 = data;
 }
 
 void toStringInt(int wartosc){
@@ -53,6 +54,7 @@ void czytaj_adc()
     for(int i=0; i<7; i++){ 
         ADMUX &= 0b11000000; 
         ADMUX |= tab_czujnikow[i];
+        _delay_ms(10);
         // ADMUX |= 0x0e; 
         ADCSRA |= _BV(ADSC); 
         while(ADCSRA & _BV(ADSC)) {}; 
@@ -63,11 +65,11 @@ void czytaj_adc()
         // czujniki[i] = ADCL;
         // char h = ADCH;
 
-        if(czujniki[i] > 200)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
-            czujniki[i] = 1; 
+        if(czujniki[i] > 500)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
+            czujnikiBool[i] = 1; 
         else 
-            czujniki[i] = 0; 
-    } 
+            czujnikiBool[i] = 0;  
+    }
 }
 
 void init(){
@@ -104,8 +106,8 @@ int licz_blad(){
         waga = 5; 
     
     for(int i=0; i<7; i++){ 
-        err += czujniki[i]*(i-3)*waga; 
-        ilosc += czujniki[i]; 
+        err += czujnikiBool[i]*(i-3)*waga; 
+        ilosc += czujnikiBool[i]; 
     } 
     
     if(ilosc != 0){ 
@@ -137,7 +139,7 @@ int PD(){
     return Kp*blad + Kd*rozniczka; 
 }
 
-void rightMotor(int v){
+void leftMotor(int v){
     if(v > 0){
         if(v > 250)
             v = 250;
@@ -153,18 +155,18 @@ void rightMotor(int v){
     }
 }
 
-void leftMotor(int v){
+void rightMotor(int v){
     if(v > 0){
         if(v > 250)
             v = 250;
-        PORTD |= _BV(6);   // AIN1
-        PORTD &= ~_BV(5);    // AIN2
+        PORTD &= ~_BV(6);   // AIN1
+        PORTD |= _BV(5);    // AIN2
         OCR1A = v;
     }else{
         if(v < -250)
             v = -250;
-        PORTD &= ~_BV(6);   // AIN1
-        PORTD |= _BV(5);    // AIN2
+        PORTD |= _BV(6);   // AIN1
+        PORTD &= ~_BV(5);    // AIN2
         OCR1A = -v;
     }
 }
@@ -197,32 +199,41 @@ int main(void){
         if(!(PIND & (1<<PD3))){    // przycisk gdy wciśniety
             flaga = !flaga;
             if(flaga){
-                // leftMotor(250);
-                // rightMotor(250);
-                petla_LF();
+                // leftMotor(200);
+                // rightMotor(200);
+                // petla_LF();
             }else{
                 stop();
                 // leftMotor(100);
             }
+            _delay_ms(1000);
+        // }else{
+            // PORTD &= ~_BV(2);
+            // czytaj_adc();
             
         }else{
-            // PORTD &= ~_BV(2);
-            // for(int i = 0; i < 7;i++){
-            //     toStringInt(czujniki[i]);
-            //     USART_send('(');
-            //     USART_send(i+0x30);
-            //     USART_send(')');
-            //     USART_send(' ');
-            //     for(short j=0;j<4;j++){
-            //         USART_send(send[j]);
-            //     }
-            //     USART_send('\n');
-            //     USART_send('\r');
-            // }
-            // USART_send('\n');
-            // USART_send('\r');
+            if(flaga){
+                petla_LF();
+            }
         }
+        // czytaj_adc();
+        // for(int i = 0; i < 7;i++){
+        //     toStringInt(czujniki[i]);
+        //     USART_send('(');
+        //     USART_send(i+0x30);
+        //     USART_send(')');
+        //     USART_send(' ');
+        //     for(short j=0;j<4;j++){
+        //         USART_send(send[j]);
+        //     }
+        //     USART_send('\n');
+        //     USART_send('\r');
+        // }
+        // USART_send('\n');
+        // USART_send('\r');
         _delay_ms(100);
+        // leftMotor(-100);
+        // rightMotor(-200);
     }
     return 0;
 }
