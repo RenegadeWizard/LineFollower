@@ -6,8 +6,9 @@
   
 
 int prev_err = 0, przestrzelony = 0; 
-int blad, pop_blad = 0, Kp = 1, Kd = 0; 
-int V_zad = 150; // wymagane zmienne globalne 
+int blad, pop_blad = 0, Kp = 2.5, Kd = 2.5; 
+int V_zad = 100; // wymagane zmienne globalne 
+int max = 0, min = 1000, avg;
 int tab_czujnikow[7] = {3,4,5,2,7,6,1}; // ustawienie czujnikow na płytce
 int czujniki[7];    // wartości czujnikow
 int czujnikiBool[7];
@@ -65,7 +66,7 @@ void czytaj_adc()
         // czujniki[i] = ADCL;
         // char h = ADCH;
 
-        if(czujniki[i] > 500)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
+        if(czujniki[i] > avg)                    // odczyt 8 starszych bitów i progowanie; próg = 150 
             czujnikiBool[i] = 1; 
         else 
             czujnikiBool[i] = 0;  
@@ -188,25 +189,53 @@ void petla_LF(){
     rightMotor(V_zad - regulacja); 
 }
 
+void config(){
+    leftMotor(100);
+    rightMotor(-100);
+    int i, j;
+
+    for(i=0;i<100;i++){
+        czytaj_adc();
+        for(j=0;j<7;j++){
+            if(czujniki[j] > max){
+                max = czujniki[j];
+            }
+            if(czujniki[j] < min){
+                min = czujniki[j];
+            }
+        }
+        _delay_ms(1);
+    }
+    stop();
+    avg = (min + max) / 2;
+}
+
 int main(void){
     // init
     init();
     PORTD |= _BV(2);    // standby (?)
     UART_init(9600,false,true);
     bool flaga = false;
+    bool konfiguracja = false;
     // głowna petla
     while(1){
         if(!(PIND & (1<<PD3))){    // przycisk gdy wciśniety
-            flaga = !flaga;
-            if(flaga){
-                // leftMotor(200);
-                // rightMotor(200);
-                // petla_LF();
+            if(!konfiguracja){
+                konfiguracja = true;
+                _delay_ms(1000);
+                config();
             }else{
-                stop();
-                // leftMotor(100);
+                flaga = !flaga;
+                if(flaga){
+                    // leftMotor(200);
+                    // rightMotor(200);
+                    // petla_LF();
+                }else{
+                    stop();
+                    // leftMotor(100);
+                }
+                _delay_ms(1000);
             }
-            _delay_ms(1000);
         // }else{
             // PORTD &= ~_BV(2);
             // czytaj_adc();
@@ -231,7 +260,7 @@ int main(void){
         // }
         // USART_send('\n');
         // USART_send('\r');
-        _delay_ms(100);
+        // _delay_ms(10);
         // leftMotor(-100);
         // rightMotor(-200);
     }
